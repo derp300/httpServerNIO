@@ -1,0 +1,5 @@
+{
+	"port" : "9090",
+	"rootDir" : "site",
+	"cache" : "js,html,jpg,jpeg"
+}
