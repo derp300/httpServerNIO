@@ -1,15 +1,16 @@
 package httpserver;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.*;
-import java.nio.file.*;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class FileReader {
     private static httpserver.FileWatcher watcher;
+    private static Pattern patternContentType, patternContentTypeDot;
 
     private static Map<Path, byte[]> cache;
     static {
@@ -39,6 +40,8 @@ public class FileReader {
     
     public static void init(String rootDir, String cachingTypesConf) {
         FileReader.rootDir = rootDir;
+        patternContentType = Pattern.compile("\\w*$");
+        patternContentTypeDot = Pattern.compile("\\.\\w*$");
         
         if(cachingTypesConf.equals("*"))
             cachingTypes.add("*");
@@ -59,26 +62,7 @@ public class FileReader {
         Path filePath = Paths.get(rootDir + filename.substring(1));
         watcher.check();
         if(!isCaching(contentType) || fileIsModify.get(filePath) == null || fileIsModify.get(filePath)) {
-            byte[] file;
-            if (contentType.equals("application/javascript") || contentType.equals("text/html")) {
-                file = readTextFile(filename);
-            } else {
-                Pattern p = Pattern.compile("^image/.*");
-                Matcher m = p.matcher(contentType);
-
-                if (m.find()) {
-                    p = Pattern.compile("\\w*$");
-                    m = p.matcher(contentType);
-                    if (m.find()) {
-                        file = readImageFile(filename, m.group());
-                    } else {
-                        throw new IOException();
-                    }
-                } else {
-                    throw new IOException();
-                }
-            }
-
+            byte[] file = readFile(filename);
             fileIsModify.put(filePath, false);
             cache.put(filePath, file);
             return file;
@@ -95,30 +79,16 @@ public class FileReader {
     public static String getContentType(String filename) {
         String contentType = null;
 
-        Pattern p = Pattern.compile("\\.\\w*$");
-        Matcher m = p.matcher(filename);
+        Matcher m = patternContentTypeDot.matcher(filename);
 
-        if(m.find())
+        if(m.find()) {
             contentType = contentTypesMap.get(m.group().substring(1));
+        }
 
         return contentType;
     }
 
-    private static byte[] readImageFile(String pathname, String format) throws IOException {
-        try (ByteArrayOutputStream out = new ByteArrayOutputStream()){
-            BufferedImage img = ImageIO.read(new File(rootDir + pathname.substring(1)));
-            ImageIO.write(img, format, out);
-            out.flush();
-    
-            byte[] bytes = out.toByteArray();
-            return bytes;
-        } catch (IOException e) {
-            System.out.println(e.toString());
-            return null;
-        }
-    }
-
-    private static byte[] readTextFile(String pathname) throws  IOException{
+    private static byte[] readFile(String pathname) throws  IOException{
         try {
             return Files.readAllBytes(Paths.get(rootDir + pathname.substring(1)));
         } catch (IOException e) {

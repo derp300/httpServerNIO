@@ -25,13 +25,14 @@ public class HttpServer {
 
     public void startServer() {
         try {
-            this.selector = Selector.open();
+            selector = Selector.open();
             ServerSocketChannel serverChannel = ServerSocketChannel.open();
             serverChannel.configureBlocking(false);
             serverChannel.socket().bind(address);
             serverChannel.register(this.selector, SelectionKey.OP_ACCEPT);
-        } catch (Throwable e) {
+        } catch (IOException e) {
             e.printStackTrace();
+            return;
         }
 
         while (true) {
