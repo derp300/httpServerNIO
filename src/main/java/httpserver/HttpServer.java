@@ -16,7 +16,8 @@ public class HttpServer {
     private Selector selector;
     private Map<SocketChannel, byte[]> responseData;
     private InetSocketAddress address;
-    ExecutorService threadService = Executors.newCachedThreadPool();
+    ExecutorService threadService;
+    ExecutorService acceptThreadService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
     public HttpServer(int port) throws IOException {
         address = new InetSocketAddress(port);
@@ -29,37 +30,45 @@ public class HttpServer {
             ServerSocketChannel serverChannel = ServerSocketChannel.open();
             serverChannel.configureBlocking(false);
             serverChannel.socket().bind(address);
-            serverChannel.register(this.selector, SelectionKey.OP_ACCEPT);
+            serverChannel.register(selector, SelectionKey.OP_ACCEPT);
         } catch (IOException e) {
             e.printStackTrace();
             return;
         }
 
-        while (true) {
-            try {
-                this.selector.selectNow();
-                Iterator<SelectionKey> keys = this.selector.selectedKeys().iterator();
-                while (keys.hasNext()) {
-                    SelectionKey key = keys.next();
+        for (int i = 0; i < Runtime.getRuntime().availableProcessors(); i++) {
+            acceptThreadService.submit(() -> {
+                threadService = Executors.newFixedThreadPool(5);
 
-                    keys.remove();
+                while (true) {
+                    try {
+                        synchronized (selector) {
+                            selector.selectNow();
+                            Iterator<SelectionKey> keys = selector.selectedKeys().iterator();
+                            while (keys.hasNext()) {
+                                SelectionKey key = keys.next();
 
-                    if (!key.isValid()) {
-                        System.out.println("Invalid key");
-                        continue;
-                    }
+                                keys.remove();
 
-                    if (key.isAcceptable()) {
-                        this.accept(key);
-                    } else if (key.isReadable()) {
-                        this.read(key);
-                    } else if (key.isWritable()) {
-                        this.write(key);
+                                if (!key.isValid()) {
+                                    System.out.println("Invalid key");
+                                    continue;
+                                }
+
+                                if (key.isAcceptable()) {
+                                    this.accept(key);
+                                } else if (key.isReadable()) {
+                                    this.read(key);
+                                } else if (key.isWritable()) {
+                                    this.write(key);
+                                }
+                            }
+                        }
+                    } catch (Throwable e) {
+                        e.printStackTrace();
                     }
                 }
-            } catch (Throwable e) {
-                e.printStackTrace();
-            }
+            });
         }
     }
 
